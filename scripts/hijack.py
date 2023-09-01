@@ -137,6 +137,69 @@ class _HijackManager(object):
             raise Exception(
                 'process_images: first argument must be a processing object')
 
+        p_batch_count = p.n_iter
+        p_seed = p.seed
+        p_do_not_save_grid = p.do_not_save_grid
+
+        state.begin()
+        state.job_count = p_batch_count
+        state.sampling_steps = p.steps
+
+        output_images = []
+        infotexts = []
+        for n in range(p_batch_count):
+            if state.skipped:
+                state.skipped = False
+            if state.interrupted:
+                break
+            p.n_iter = 1
+            p.iteration = n
+            p.seed = p_seed
+            p.do_not_save_grid = True
+            r = self._hijack_process_images_inner(*args, **kwargs)
+            output_images.extend(r.images)
+            infotexts.extend(r.infotexts)
+
+            state.nextjob()
+
+        index_of_first_image = 0
+        unwanted_grid_because_of_img_count = len(output_images) < 2 and opts.grid_only_if_multiple
+        if (opts.return_grid or opts.grid_save) and not p_do_not_save_grid and not unwanted_grid_because_of_img_count:
+            grid = images.image_grid(output_images, p.batch_size)
+
+            #text = infotext(use_main_prompt=True)
+            text = infotexts[0]
+            if opts.return_grid:
+                infotexts.insert(0, text)
+                if opts.enable_pnginfo:
+                    grid.info["parameters"] = text
+                output_images.insert(0, grid)
+                index_of_first_image = 1
+
+            if opts.grid_save:
+                images.save_image(grid, p.outpath_grids, "grid", p.all_seeds[0], p.all_prompts[0], opts.grid_format, info=text, short_filename=not opts.grid_extended_filename, p=p, grid=True)
+
+        res = Processed(
+            p,
+            images_list=output_images,
+            #seed=p.all_seeds[0],
+            info=infotexts[0],
+            #comments="".join(f"{comment}\n" for comment in comments),
+            #subseed=p.all_subseeds[0],
+            index_of_first_image=index_of_first_image,
+            infotexts=infotexts,
+            )
+        state.end()
+        return res
+
+    def _hijack_process_images_inner(self, *args, **kwargs) -> Processed:
+        if len(args) > 0 and isinstance(args[0],
+                                        processing.StableDiffusionProcessing):
+            p = args[0]
+        else:
+            raise Exception(
+                'process_images: first argument must be a processing object')
+
         remote_inference_enabled, selected_checkpoint_name, selected_vae_name = get_visible_extension_args(p, 'cloud inference')
 
         if not remote_inference_enabled:
@@ -146,9 +209,9 @@ class _HijackManager(object):
         if p.seed == -1:
             p.seed = int(random.randrange(4294967294))
 
-        state.begin()
-        state.sampling_steps = p.steps
-        state.job_count = p.n_iter
+        #state.begin()
+        #state.sampling_steps = p.steps
+        #state.job_count = p.n_iter
 
         state.textinfo = "remote inferencing ({})".format(api.get_instance().__class__.__name__)
 
@@ -202,6 +265,7 @@ class _HijackManager(object):
         comments = {}
         infotexts = []
 
+        p.init(p.all_prompts, p.all_seeds, p.all_subseeds)
         def infotext(iteration=0, position_in_batch=0):
             return create_infotext(p, p.all_prompts, p.all_seeds,
                                    p.all_subseeds, comments, iteration,
@@ -254,13 +318,14 @@ class _HijackManager(object):
                     grid=True)
         p = Processed(
             p,
-            generated_images,
-            all_seeds=[p.seed for _ in range(len(generated_images))],
-            all_prompts=[p.prompt for _ in range(len(generated_images))],
+            images_list=generated_images,
+            #all_seeds=[p.seed for _ in range(len(generated_images))],
+            #all_prompts=[p.prompt for _ in range(len(generated_images))],
+            info=infotexts[0],
             comments="".join(f"{comment}\n" for comment in comments),
             index_of_first_image=index_of_first_image,
             infotexts=infotexts)
-        state.end()
+        #state.end()
         return p
 
     def _hijack_run_postprocessing(self, *args, **kwargs):

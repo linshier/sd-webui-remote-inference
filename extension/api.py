@@ -7,7 +7,7 @@ from PIL import Image, ImageFilter, ImageOps
 from multiprocessing.pool import ThreadPool
 import importlib
 
-from omniinfer_client import *
+from remote_infer_client import *
 from dataclass_wizard import JSONWizard, DumpMeta
 from dataclasses import dataclass, field
 
@@ -128,11 +128,11 @@ class StableDiffusionModel(JSONe):
 #         self.preview = preview
 
 
-class OmniinferAPI(BaseAPI, UpscaleAPI):
+class RemoteInferAPI(BaseAPI, UpscaleAPI):
 
     def __init__(self, api_key=None):
         self._api_key = api_key
-        self._client: OmniClient = None
+        self._client: SdwInferClient = None
 
         if self._api_key is not None:
             self.update_client()
@@ -140,7 +140,7 @@ class OmniinferAPI(BaseAPI, UpscaleAPI):
         self._models: List[StableDiffusionModel] = []
 
     def update_client(self):
-        self._client = OmniClient(self._api_key)
+        self._client = SdwInferClient(self._api_key)
         self._client.set_extra_headers({'User-Agent': _user_agent()})
 
     @classmethod
@@ -152,7 +152,7 @@ class OmniinferAPI(BaseAPI, UpscaleAPI):
         except Exception as exp:
             pass
 
-        o = OmniinferAPI()
+        o = RemoteInferAPI()
         if config.get('key') is not None:
             o._api_key = config['key']
             o.update_client()
@@ -210,7 +210,7 @@ class OmniinferAPI(BaseAPI, UpscaleAPI):
 
     @classmethod
     def test_connection(cls, api_key: str):
-        client = OmniClient(api_key)
+        client = SdwInferClient(api_key)
         try:
             res = client.progress("sd-webui-test")
         except Exception as e:
@@ -242,7 +242,7 @@ class OmniinferAPI(BaseAPI, UpscaleAPI):
         elif progress_data.status == ProgressResponseStatusCode.FAILED:
             raise Exception("failed to generate image({}): {}", progress.data.failed_reason)
 
-        state.sampling_step = int(state.sampling_steps * state.job_count * global_progress)
+        state.sampling_step = int(state.sampling_steps * (state.job_no + global_progress))
 
     def img2img(
         self,
@@ -490,13 +490,13 @@ def get_instance():
     global _instance
     if _instance is not None:
         return _instance
-    _instance = OmniinferAPI.load_from_config()
+    _instance = RemoteInferAPI.load_from_config()
     return _instance
 
 
 def refresh_instance():
     global _instance
-    _instance = OmniinferAPI.load_from_config()
+    _instance = RemoteInferAPI.load_from_config()
     return _instance
 
 
@@ -673,11 +673,18 @@ def retrieve_images(img_urls):
                 print("[cloud-inference] failed to download image, retrying...")
             attempts -= 1
         return None
+    def _decodeb64(img_b64):
+        try:
+            return Image.open(io.BytesIO(base64.b64decode(img_b64)))
+        except Exception:
+            return None
+        return None
 
     pool = ThreadPool()
     applied = []
     for img_url in img_urls:
-        applied.append(pool.apply_async(_download, (img_url, )))
+        #applied.append(pool.apply_async(_download, (img_url, )))
+        applied.append(pool.apply_async(_decodeb64, (img_url, )))
     ret = [r.get() for r in applied]
     return [_ for _ in ret if _ is not None]
 

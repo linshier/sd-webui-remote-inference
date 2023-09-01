@@ -126,6 +126,10 @@ class DataBinding:
         _binding.remote_model_vaes = _get_kind_from_remote_models(_binding.remote_models, "vae")
         _binding.remote_model_controlnet = _get_kind_from_remote_models(_binding.remote_models, "controlnet")
         _binding.remote_model_upscalers = _get_kind_from_remote_models(_binding.remote_models, "upscaler")
+        for model in _binding.remote_model_checkpoints:
+            if model.rating:
+                _binding.default_remote_model = model.alias
+                break
 
     @staticmethod
     def _update_lora_in_prompt(prompt, _lora_names, weight=1):
@@ -893,6 +897,7 @@ def on_ui_settings():
         False, "Cloud Inference Checkbox Hideen", component=gr.Checkbox, section=section))
     shared.opts.add_option("cloud_inference_suggest_prompts_default_enabled", shared.OptionInfo(
         True, "Cloud Inference Suggest Prompts Default Enabled", component=gr.Checkbox, section=section))
+    shared.opts.add_option("cloud_inference_remote_provider_list", shared.OptionInfo("", "SD-webui api provider(TODO:list, separated by commas).", section=section))
 
 
 script_callbacks.on_after_component(on_after_component_callback)
