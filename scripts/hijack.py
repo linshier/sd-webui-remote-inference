@@ -137,6 +137,10 @@ class _HijackManager(object):
             raise Exception(
                 'process_images: first argument must be a processing object')
 
+        stored_opts = {k: opts.data[k] for k in p.override_settings.keys()}
+        for k, v in p.override_settings.items():
+            setattr(opts, k, v)
+
         p_batch_count = p.n_iter
         p_seed = p.seed
         p_do_not_save_grid = p.do_not_save_grid
@@ -188,8 +192,13 @@ class _HijackManager(object):
             #subseed=p.all_subseeds[0],
             index_of_first_image=index_of_first_image,
             infotexts=infotexts,
-            )
+        )
         state.end()
+
+        # restore opts to original state
+        if p.override_settings_restore_afterwards:
+            for k, v in stored_opts.items():
+                setattr(opts, k, v)
         return res
 
     def _hijack_process_images_inner(self, *args, **kwargs) -> Processed:
@@ -272,26 +281,31 @@ class _HijackManager(object):
                                    position_in_batch)
 
         for i, image in enumerate(generated_images):
-            if opts.enable_pnginfo:
-                image.info["parameters"] = infotext()
-                infotexts.append(infotext())
+            #if opts.enable_pnginfo:
+            #    image.info["parameters"] = infotext()
+            #    infotexts.append(infotext())
 
             seed = None
             if len(p.all_seeds) > i:
                 seed = p.all_seeds[i]
-            prompt = None
-            if len(p.all_prompts) > i:
-                prompt = p.all_prompts[i]
+            #prompt = None
+            #if len(p.all_prompts) > i:
+            #    prompt = p.all_prompts[i]
 
+            text = infotext()
             if opts.samples_save and not p.do_not_save_samples:
                 images.save_image(image,
                                   p.outpath_samples,
                                   "",
                                   seed,
-                                  prompt,
+                                  p.all_prompts[i],
                                   opts.samples_format,
-                                  info=infotext(),
+                                  info=text,
                                   p=p)
+            infotexts.append(text)
+            if opts.enable_pnginfo:
+                generated_images[i].info["parameters"] = text
+
         if (opts.return_grid or opts.grid_save) and not p.do_not_save_grid and not unwanted_grid_because_of_img_count:
             grid = images.image_grid(generated_images, p.batch_size)
 
@@ -489,9 +503,9 @@ def create_infotext(p,
         "Token merging ratio": None if token_merging_ratio == 0 else token_merging_ratio,
         "Token merging ratio hr": None if not enable_hr or token_merging_ratio_hr == 0 else token_merging_ratio_hr,
         "Init image hash": getattr(p, 'init_img_hash', None),
-        "RNG": None,
+        "RNG": opts.randn_source if opts.randn_source != "GPU" else None,
         "NGMS": None,
-        "Version": None,
+        "Version": processing.program_version() if opts.add_version_to_infotext else None,
         **p.extra_generation_params,
     }
 
@@ -499,13 +513,6 @@ def create_infotext(p,
     if getattr(p, 's_min_ucond', None) is not None:
         if p.s_min_uncond != 0:
             generation_params["NGMS"] = p.s_min_uncond
-    if getattr(opts, 'randn_source',
-               None) is not None and opts.randn_source != "GPU":
-        generation_params["RNG"] = opts.randn_source
-
-    if getattr(opts, 'add_version_to_infotext', None):
-        if opts.add_version_to_infotext:
-            generation_params['Version'] = processing.program_version()
 
     generation_params_text = ", ".join([
         k if k == v else
@@ -513,11 +520,9 @@ def create_infotext(p,
         for k, v in generation_params.items() if v is not None
     ])
 
-    negative_prompt_text = f"\nNegative prompt: {p.all_negative_prompts[index]}" if p.all_negative_prompts[
-        index] else ""
+    negative_prompt_text = f"\nNegative prompt: {p.all_negative_prompts[index]}" if p.all_negative_prompts[index] else ""
 
-    return f"{all_prompts[index]}{negative_prompt_text}\n{generation_params_text}".strip(
-    )
+    return f"{all_prompts[index]}{negative_prompt_text}\n{generation_params_text}".strip()
 
 
 def get_visible_extension_args(p: processing.StableDiffusionProcessing, name):

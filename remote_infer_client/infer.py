@@ -204,6 +204,8 @@ class SdwInferClient:
         request_ = request.to_dict()
         request_['override_settings'] = {}
         request_['override_settings']['sd_model_checkpoint'] = request.model_name
+        request_['override_settings']['CLIP_stop_at_last_layers'] = request.clip_skip
+        request_['override_settings']['randn_source'] = 'GPU'
         request_['do_not_save_grid'] = True
         request_['send_images'] = True
         request_['save_images'] = False
