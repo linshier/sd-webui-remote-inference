@@ -205,7 +205,10 @@ class SdwInferClient:
         request_['override_settings'] = {}
         request_['override_settings']['sd_model_checkpoint'] = request.model_name
         request_['override_settings']['CLIP_stop_at_last_layers'] = request.clip_skip
-        request_['override_settings']['randn_source'] = 'GPU'
+        request_['override_settings']['randn_source']           = shared.opts.randn_source
+        request_['override_settings']['token_merging_ratio']    = shared.opts.token_merging_ratio
+        request_['override_settings']['token_merging_ratio_hr'] = shared.opts.token_merging_ratio_hr
+        request_['override_settings']['eta_noise_seed_delta']   = shared.opts.eta_noise_seed_delta
         request_['do_not_save_grid'] = True
         request_['send_images'] = True
         request_['save_images'] = False
