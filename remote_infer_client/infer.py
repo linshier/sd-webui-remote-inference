@@ -34,8 +34,10 @@ class SdwInferClient:
         self._model_list_cache = None
         self._extra_headers = {}
 
-    def base_url(self):
+    def base_url(self, api_path=''):
         provider = shared.opts.data.get("cloud_inference_remote_provider_list", "127.0.0.1:1234")
+        if (api_path in ['/controlnet/model_list']):
+            return f"http://{provider}"
         return f"http://{provider}/sdapi/v1"
 
     def set_extra_headers(self, headers: dict):
@@ -54,7 +56,7 @@ class SdwInferClient:
         logger.debug(f"[GET] params: {params}")
 
         response = self.session.get(
-            self.base_url() + api_path,
+            self.base_url(api_path) + api_path,
             #headers=headers,
             params=params,
             timeout=settings.DEFAULT_REQUEST_TIMEOUT,
@@ -209,9 +211,22 @@ class SdwInferClient:
         request_['override_settings']['token_merging_ratio']    = shared.opts.token_merging_ratio
         request_['override_settings']['token_merging_ratio_hr'] = shared.opts.token_merging_ratio_hr
         request_['override_settings']['eta_noise_seed_delta']   = shared.opts.eta_noise_seed_delta
+        if request.controlnet_units is not None:
+            cna = request_['controlnet_units']
+            del request_['controlnet_units']
+            for i in range(len(cna)):
+                cna[i]['enabled'] = True
+                cna[i]['image'] = cna[i]['input_image']
+                del cna[i]['input_image']
+            request_['alwayson_scripts'] = {
+                    'ControlNet' : {
+                        'args' : cna
+                        }
+                    }
         request_['do_not_save_grid'] = True
         request_['send_images'] = True
         request_['save_images'] = False
+        print(request_)
         response_ = self._post('/txt2img', request_)
         response = SdwTxt2ImgResponse.from_dict(response_)
 
@@ -349,12 +364,17 @@ class SdwInferClient:
                     tmp_set.add(m.name)
                     models.append(ModelInfo(sd_name=m.name, name=m.name, hash=m.hash, type=m.type, civitai_version_id=0))
 
-            tmp = []
             res_embedding = self._get('/embeddings')
             for n in res_embedding['loaded']:
                 if n not in tmp_set:
                     tmp_set.add(n)
                     models.append(ModelInfo(sd_name=n, name=n, hash='0', type=ModelType.TEXT_INVERSION, civitai_version_id=0))
+
+            res_controlnet = self._get('/controlnet/model_list')
+            for n in res_controlnet['model_list']:
+                if n not in tmp_set:
+                    tmp_set.add(n)
+                    models.append(ModelInfo(sd_name=n, name=n, hash='0', type=ModelType.CONTROLNET, civitai_version_id=0))
 
             self._model_list_cache = ModelList(models)
 

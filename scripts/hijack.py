@@ -298,7 +298,7 @@ class _HijackManager(object):
                                   p.outpath_samples,
                                   "",
                                   seed,
-                                  p.all_prompts[i],
+                                  p.all_prompts[i] if i < len(p.all_prompts) else '',
                                   opts.samples_format,
                                   info=text,
                                   p=p)

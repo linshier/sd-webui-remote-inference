@@ -13,6 +13,7 @@ Fork from [omniinfer](https://github.com/omniinfer/sd-webui-cloud-inference)
 | -------------------------- | ------- | ----------- |
 | txt2img                    | ✅       |             |
 | txt2img_hires.fix          | ✅       |             |
+| txt2img_controlnet         | ✅       |             |
 
 
 ## Guide
