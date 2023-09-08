@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional, List, Any
 from .serializer import JSONe
 from enum import Enum
 from .utils import batch_download_images
@@ -139,6 +139,7 @@ class Txt2ImgRequest(JSONe):
     sd_vae: Optional[str] = None
     clip_skip: Optional[int] = 1
     controlnet_units: Optional[List[ControlnetUnit]] = None
+    roop_units: Optional[List[Any]] = None
 
     enable_hr: Optional[bool] = False
     hr_upscaler: Optional[str] = 'R-ESRGAN 4x+'

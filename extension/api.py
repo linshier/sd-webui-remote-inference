@@ -320,8 +320,9 @@ class RemoteInferAPI(BaseAPI, UpscaleAPI):
 
     def txt2img(self, p: processing.StableDiffusionProcessingTxt2Img):
         controlnet_batchs = get_controlnet_arg(p)
+        roop_units = get_roop_arg(p)
 
-        def _req(p: processing.StableDiffusionProcessingTxt2Img, controlnet_units):
+        def _req(p: processing.StableDiffusionProcessingTxt2Img, controlnet_units, roop_units):
             req = Txt2ImgRequest(
                 model_name=p._cloud_inference_settings['sd_checkpoint'],
                 sampler_name=p.sampler_name,
@@ -352,6 +353,8 @@ class RemoteInferAPI(BaseAPI, UpscaleAPI):
 
             if len(controlnet_units) > 0:
                 req.controlnet_units = controlnet_units
+            if roop_units is not None:
+                req.roop_units = roop_units
 
             res = self._client.sync_txt2img(req, download_images=False, callback=self._update_state)
             if res.data.status != ProgressResponseStatusCode.SUCCESSFUL:
@@ -362,9 +365,9 @@ class RemoteInferAPI(BaseAPI, UpscaleAPI):
         imgs = []
         if len(controlnet_batchs) > 0:
             for c in controlnet_batchs:
-                imgs.extend(_req(p, c))
+                imgs.extend(_req(p, c, roop_units))
         else:
-            imgs.extend(_req(p, []))
+            imgs.extend(_req(p, [], roop_units))
 
         state.textinfo = "downloading images..."
 
@@ -506,6 +509,12 @@ def get_visible_extension_args(p: processing.StableDiffusionProcessing, name):
             return p.script_args[s.args_from:s.args_to]
     return []
 
+def get_roop_arg(p: processing.StableDiffusionProcessing):
+    a = [i for i in get_visible_extension_args(p, 'reactor')]
+    if len(a) > 0 and a[0] is not None:
+        a[0] = image_to_base64(a[0])
+        a[4] = 'inswapper_128.onnx'
+    return a if len(a) > 0 and a[1] else None
 
 def get_controlnet_arg(p: processing.StableDiffusionProcessing):
     controlnet_batchs = []

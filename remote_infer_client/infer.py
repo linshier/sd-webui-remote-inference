@@ -211,6 +211,7 @@ class SdwInferClient:
         request_['override_settings']['token_merging_ratio']    = shared.opts.token_merging_ratio
         request_['override_settings']['token_merging_ratio_hr'] = shared.opts.token_merging_ratio_hr
         request_['override_settings']['eta_noise_seed_delta']   = shared.opts.eta_noise_seed_delta
+        alwayson_scripts = {}
         if request.controlnet_units is not None:
             cna = request_['controlnet_units']
             del request_['controlnet_units']
@@ -218,15 +219,16 @@ class SdwInferClient:
                 cna[i]['enabled'] = True
                 cna[i]['image'] = cna[i]['input_image']
                 del cna[i]['input_image']
-            request_['alwayson_scripts'] = {
-                    'ControlNet' : {
-                        'args' : cna
-                        }
-                    }
+            alwayson_scripts['ControlNet'] = { 'args' : cna }
+        if request.roop_units is not None:
+            alwayson_scripts['ReActor'] = { 'args' : request_['roop_units'] }
+            del request_['roop_units']
+
+        request_['alwayson_scripts'] = alwayson_scripts
         request_['do_not_save_grid'] = True
         request_['send_images'] = True
         request_['save_images'] = False
-        print(request_)
+        #print(request_)
         response_ = self._post('/txt2img', request_)
         response = SdwTxt2ImgResponse.from_dict(response_)
 
